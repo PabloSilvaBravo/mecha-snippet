@@ -11,6 +11,10 @@ APP_DIR_NAME = "MechaSnippet"
 SNIPPETS_FILENAME = "snippets.json"
 EXAMPLE_FILENAME = "snippets.example.json"
 
+# Variable de entorno opcional para que cada Mac apunte su snippets.json a una
+# ruta propia (carpeta o archivo). Si no está definida, se usa Application Support.
+ENV_SNIPPETS = "MECHA_SNIPPET_FILE"
+
 
 def app_support_dir():
     """Directorio de datos del usuario, creado si no existe."""
@@ -21,7 +25,23 @@ def app_support_dir():
 
 
 def snippets_path():
-    """Ruta al snippets.json real del usuario."""
+    """Ruta al snippets.json real y privado del usuario, local a este Mac.
+
+    Prioridad:
+      1. Variable de entorno MECHA_SNIPPET_FILE (archivo o carpeta).
+      2. ~/Library/Application Support/MechaSnippet/snippets.json (por defecto).
+    En ambos casos se asegura que la carpeta contenedora exista.
+    """
+    override = os.environ.get(ENV_SNIPPETS, "").strip()
+    if override:
+        path = os.path.abspath(os.path.expanduser(os.path.expandvars(override)))
+        if os.path.isdir(path):
+            path = os.path.join(path, SNIPPETS_FILENAME)
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        return path
+
     return os.path.join(app_support_dir(), SNIPPETS_FILENAME)
 
 
