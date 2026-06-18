@@ -4,23 +4,36 @@ Es un NSPanel "no activante": puede recibir el teclado (para escribir en el
 buscador) sin robarle la activación a la app de fondo, de modo que al insertar
 el texto vuelve solo a su lugar. Se cierra con Esc o al perder el foco
 (click fuera). Navegación con ↑ ↓; Enter inserta.
+
+Características:
+  - Fondo Liquid Glass (NSGlassEffectView en macOS 26+, con fallback).
+  - Ancho adaptativo al texto del snippet más largo visible.
+  - Navegación con flechas mediante un monitor de eventos local, que funciona
+    apenas el panel se abre (sin depender del campo de texto).
 """
 
 import objc
 from AppKit import (
+    NSApplicationActivateIgnoringOtherApps,
+    NSAttributedString,
     NSBackingStoreBuffered,
     NSColor,
+    NSEvent,
+    NSEventMaskKeyDown,
     NSFont,
+    NSFontAttributeName,
     NSFloatingWindowLevel,
     NSPanel,
+    NSScreen,
     NSScrollView,
     NSTableColumn,
     NSTableView,
     NSTableViewSelectionHighlightStyleRegular,
     NSTextField,
     NSView,
+    NSViewHeightSizable,
+    NSViewWidthSizable,
     NSWorkspace,
-    NSApplicationActivateIgnoringOtherApps,
     NSWindowStyleMaskBorderless,
     NSWindowStyleMaskNonactivatingPanel,
 )
@@ -28,12 +41,21 @@ from Foundation import NSMakeRect, NSObject, NSIndexSet
 
 from . import matcher
 
-WIDTH = 460.0
 SEARCH_HEIGHT = 30.0
-ROW_HEIGHT = 28.0
+ROW_HEIGHT = 30.0
 MAX_VISIBLE_ROWS = 8
 PADDING = 10.0
-CORNER_RADIUS = 12.0
+CORNER_RADIUS = 14.0
+MIN_WIDTH = 300.0
+MAX_WIDTH = 760.0
+PREVIEW_MAX_CHARS = 140
+
+# keycodes de macOS
+KEY_DOWN = 125
+KEY_UP = 126
+KEY_RETURN = 36
+KEY_ENTER = 76
+KEY_ESC = 53
 
 
 class _KeyablePanel(NSPanel):
@@ -61,6 +83,9 @@ class SnippetController(NSObject):
         self._open = False
         self._closing = False
         self._prev_app = None
+        self._anchor = (0.0, 0.0)
+        self._row_font = NSFont.systemFontOfSize_(13)
+        self._search_font = NSFont.systemFontOfSize_(15)
         self._build_panel()
         return self
 
@@ -68,7 +93,7 @@ class SnippetController(NSObject):
     @objc.python_method
     def _build_panel(self):
         style = NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
-        rect = NSMakeRect(0, 0, WIDTH, SEARCH_HEIGHT + PADDING * 2)
+        rect = NSMakeRect(0, 0, MIN_WIDTH, SEARCH_HEIGHT + PADDING * 2)
         panel = _KeyablePanel.alloc().initWithContentRect_styleMask_backing_defer_(
             rect, style, NSBackingStoreBuffered, False
         )
@@ -79,56 +104,84 @@ class SnippetController(NSObject):
         panel.setHasShadow_(True)
         panel.setDelegate_(self)
 
-        container = self._make_background(rect)
-        panel.setContentView_(container)
+        background, inner = self._make_background(rect)
+        panel.setContentView_(background)
 
         # Campo de búsqueda
         search = NSTextField.alloc().initWithFrame_(
-            NSMakeRect(PADDING, PADDING, WIDTH - PADDING * 2, SEARCH_HEIGHT)
+            NSMakeRect(PADDING, PADDING, MIN_WIDTH - PADDING * 2, SEARCH_HEIGHT)
         )
-        search.setFont_(NSFont.systemFontOfSize_(15))
+        search.setFont_(self._search_font)
         search.setBezeled_(False)
         search.setDrawsBackground_(False)
         search.setFocusRingType_(1)  # NSFocusRingTypeNone
         search.setPlaceholderString_("Buscar snippet…")
         search.setDelegate_(self)
-        container.addSubview_(search)
+        inner.addSubview_(search)
         self._search = search
 
         # Lista de resultados (NSTableView dentro de un NSScrollView)
-        scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(0, 0, WIDTH, 0))
+        scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(0, 0, MIN_WIDTH, 0))
         scroll.setHasVerticalScroller_(True)
         scroll.setAutohidesScrollers_(True)
         scroll.setDrawsBackground_(False)
         scroll.setBorderType_(0)  # NSNoBorder
 
-        table = NSTableView.alloc().initWithFrame_(NSMakeRect(0, 0, WIDTH, 0))
+        table = NSTableView.alloc().initWithFrame_(NSMakeRect(0, 0, MIN_WIDTH, 0))
         table.setRowHeight_(ROW_HEIGHT)
         table.setHeaderView_(None)
         table.setBackgroundColor_(NSColor.clearColor())
         table.setSelectionHighlightStyle_(NSTableViewSelectionHighlightStyleRegular)
         table.setAllowsEmptySelection_(True)
         table.setAllowsMultipleSelection_(False)
+        table.setIntercellSpacing_((0.0, 2.0))
         table.setDataSource_(self)
         table.setDelegate_(self)
         table.setTarget_(self)
         table.setDoubleAction_("doubleClick:")
 
         column = NSTableColumn.alloc().initWithIdentifier_("snippet")
-        column.setWidth_(WIDTH)
+        column.setWidth_(MIN_WIDTH - PADDING * 2)
         table.addTableColumn_(column)
 
         scroll.setDocumentView_(table)
-        container.addSubview_(scroll)
+        inner.addSubview_(scroll)
         self._scroll = scroll
         self._table = table
+        self._column = column
 
         self._panel = panel
-        self._container = container
+        self._background = background
+        self._inner = inner
+
+        # Monitor de teclado: maneja flechas, Enter y Esc apenas el panel está
+        # abierto, sin depender de que el campo de texto los reenvíe.
+        self._monitor = NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
+            NSEventMaskKeyDown, self._handle_key_event
+        )
 
     @objc.python_method
     def _make_background(self, rect):
-        """Fondo translúcido con esquinas redondeadas (NSVisualEffectView si existe)."""
+        """Devuelve (vista_de_fondo, contenedor_interno).
+
+        Usa Liquid Glass (NSGlassEffectView) si está disponible; si no, cae a
+        NSVisualEffectView y, en último caso, a una vista con color sólido.
+        """
+        inner = NSView.alloc().initWithFrame_(rect)
+        inner.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
+
+        appkit = __import__("AppKit")
+
+        glass_cls = getattr(appkit, "NSGlassEffectView", None)
+        if glass_cls is not None:
+            try:
+                glass = glass_cls.alloc().initWithFrame_(rect)
+                glass.setCornerRadius_(CORNER_RADIUS)
+                glass.setContentView_(inner)
+                return glass, inner
+            except Exception:
+                pass
+
         try:
             from AppKit import (
                 NSVisualEffectView,
@@ -136,34 +189,46 @@ class SnippetController(NSObject):
                 NSVisualEffectStateActive,
             )
 
-            view = NSVisualEffectView.alloc().initWithFrame_(rect)
-            material = getattr(__import__("AppKit"), "NSVisualEffectMaterialMenu", None)
-            if material is not None:
-                view.setMaterial_(material)
-            view.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
-            view.setState_(NSVisualEffectStateActive)
-        except Exception:
-            view = NSView.alloc().initWithFrame_(rect)
-            view.setWantsLayer_(True)
-            view.layer().setBackgroundColor_(
-                NSColor.windowBackgroundColor().CGColor()
+            effect = NSVisualEffectView.alloc().initWithFrame_(rect)
+            material = (
+                getattr(appkit, "NSVisualEffectMaterialPopover", None)
+                or getattr(appkit, "NSVisualEffectMaterialMenu", None)
             )
+            if material is not None:
+                effect.setMaterial_(material)
+            effect.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
+            effect.setState_(NSVisualEffectStateActive)
+            effect.setWantsLayer_(True)
+            effect.layer().setCornerRadius_(CORNER_RADIUS)
+            effect.layer().setMasksToBounds_(True)
+            inner.setFrame_(rect)
+            effect.addSubview_(inner)
+            return effect, inner
+        except Exception:
+            pass
 
-        view.setWantsLayer_(True)
-        view.layer().setCornerRadius_(CORNER_RADIUS)
-        view.layer().setMasksToBounds_(True)
-        return view
+        plain = NSView.alloc().initWithFrame_(rect)
+        plain.setWantsLayer_(True)
+        plain.layer().setBackgroundColor_(NSColor.windowBackgroundColor().CGColor())
+        plain.layer().setCornerRadius_(CORNER_RADIUS)
+        plain.layer().setMasksToBounds_(True)
+        inner.setFrame_(rect)
+        plain.addSubview_(inner)
+        return plain, inner
 
     # ------------------------------------------------------------------- mostrar/ocultar
     @objc.python_method
     def show(self):
+        from .caret import panel_top_left
+
         self._prev_app = NSWorkspace.sharedWorkspace().frontmostApplication()
         self.store.reload()
         self._search.setStringValue_("")
-        self._apply_filter("")
-        self._layout_and_place()
+        self._anchor = panel_top_left()
         self._open = True
         self._closing = False
+        self._apply_filter("")
+        self._layout_and_place()
         self._panel.makeKeyAndOrderFront_(None)
         self._panel.makeFirstResponder_(self._search)
 
@@ -193,26 +258,34 @@ class SnippetController(NSObject):
         else:
             self._table.deselectAll_(None)
 
-    # ----------------------------------------------------------- delegado NSTextField
-    def controlTextDidChange_(self, notification):
-        self._apply_filter(self._search.stringValue())
-        self._layout_and_place()
+    @objc.python_method
+    def _row_text(self, name, content):
+        preview = " ".join(content.replace("\t", " ").split())
+        if len(preview) > PREVIEW_MAX_CHARS:
+            preview = preview[:PREVIEW_MAX_CHARS] + "…"
+        if preview:
+            return "%s     ·     %s" % (name, preview)
+        return name
 
-    def control_textView_doCommandBySelector_(self, control, textView, selector):
-        name = str(selector)
-        if name in ("moveUp:",):
-            self._move(-1)
-            return True
-        if name in ("moveDown:",):
+    # ----------------------------------------------------------- monitor de teclado
+    @objc.python_method
+    def _handle_key_event(self, event):
+        if not self._open:
+            return event
+        code = event.keyCode()
+        if code == KEY_DOWN:
             self._move(1)
-            return True
-        if name in ("insertNewline:", "insertLineBreak:"):
+            return None
+        if code == KEY_UP:
+            self._move(-1)
+            return None
+        if code in (KEY_RETURN, KEY_ENTER):
             self._insert_selected()
-            return True
-        if name in ("cancelOperation:", "cancel:", "complete:"):
+            return None
+        if code == KEY_ESC:
             self.hide()
-            return True
-        return False
+            return None
+        return event
 
     @objc.python_method
     def _move(self, delta):
@@ -220,6 +293,11 @@ class SnippetController(NSObject):
             return
         self._selected = max(0, min(len(self._results) - 1, self._selected + delta))
         self._sync_selection()
+
+    # ----------------------------------------------------------- delegado NSTextField
+    def controlTextDidChange_(self, notification):
+        self._apply_filter(self._search.stringValue())
+        self._layout_and_place()
 
     # ----------------------------------------------------------- delegado NSWindow
     def windowDidResignKey_(self, notification):
@@ -236,21 +314,18 @@ class SnippetController(NSObject):
         field = tableView.makeViewWithIdentifier_owner_(identifier, self)
         if field is None:
             field = NSTextField.alloc().initWithFrame_(
-                NSMakeRect(0, 0, WIDTH, ROW_HEIGHT)
+                NSMakeRect(0, 0, MIN_WIDTH, ROW_HEIGHT)
             )
             field.setIdentifier_(identifier)
             field.setBezeled_(False)
             field.setDrawsBackground_(False)
             field.setEditable_(False)
             field.setSelectable_(False)
-            field.setFont_(NSFont.systemFontOfSize_(13))
+            field.setFont_(self._row_font)
             field.setLineBreakMode_(5)  # NSLineBreakByTruncatingTail
 
         name, content = self._results[row]
-        preview = content.replace("\n", " ").strip()
-        if len(preview) > 64:
-            preview = preview[:64] + "…"
-        field.setStringValue_("%s     ·     %s" % (name, preview))
+        field.setStringValue_(self._row_text(name, content))
         return field
 
     def tableViewSelectionDidChange_(self, notification):
@@ -286,32 +361,54 @@ class SnippetController(NSObject):
 
     # ------------------------------------------------------------------- layout
     @objc.python_method
+    def _measure(self, text, font):
+        if not text:
+            text = " "
+        attributed = NSAttributedString.alloc().initWithString_attributes_(
+            text, {NSFontAttributeName: font}
+        )
+        return float(attributed.size().width)
+
+    @objc.python_method
+    def _compute_width(self):
+        widest = self._measure(
+            self._search.stringValue() or "Buscar snippet…", self._search_font
+        )
+        # Medimos hasta 300 filas para no penalizar catálogos enormes.
+        for name, content in self._results[:300]:
+            w = self._measure(self._row_text(name, content), self._row_font)
+            if w > widest:
+                widest = w
+
+        content_width = widest + PADDING * 2 + 28.0  # inset de celda + scroller
+        screen_width = NSScreen.screens()[0].visibleFrame().size.width
+        max_width = min(MAX_WIDTH, screen_width * 0.7)
+        return max(MIN_WIDTH, min(max_width, content_width))
+
+    @objc.python_method
     def _layout_and_place(self):
+        width = self._compute_width()
         rows = max(1, min(MAX_VISIBLE_ROWS, len(self._results)))
         list_height = rows * ROW_HEIGHT if self._results else 0.0
         total = SEARCH_HEIGHT + PADDING * 2 + list_height
         if self._results:
             total += PADDING  # respiro entre buscador y lista
 
-        # Reposicionar las subvistas (origen abajo a la izquierda).
-        self._container.setFrame_(NSMakeRect(0, 0, WIDTH, total))
+        x, top = self._clamp_to_screen(self._anchor[0], self._anchor[1], width, total)
+        self._panel.setFrame_display_(NSMakeRect(x, top - total, width, total), True)
+
+        self._background.setFrame_(NSMakeRect(0, 0, width, total))
+        self._inner.setFrame_(NSMakeRect(0, 0, width, total))
         self._search.setFrame_(
-            NSMakeRect(PADDING, total - PADDING - SEARCH_HEIGHT, WIDTH - PADDING * 2, SEARCH_HEIGHT)
+            NSMakeRect(PADDING, total - PADDING - SEARCH_HEIGHT, width - PADDING * 2, SEARCH_HEIGHT)
         )
-        self._scroll.setFrame_(NSMakeRect(0, 0, WIDTH, list_height))
-
-        from .caret import panel_top_left
-
-        x, y = panel_top_left()
-        x, y = self._clamp_to_screen(x, y, WIDTH, total)
-
-        frame = NSMakeRect(x, y - total, WIDTH, total)
-        self._panel.setFrame_display_(frame, True)
+        self._scroll.setFrame_(
+            NSMakeRect(PADDING, PADDING if self._results else 0, width - PADDING * 2, list_height)
+        )
+        self._column.setWidth_(width - PADDING * 2)
 
     @staticmethod
     def _clamp_to_screen(x, top_y, width, height):
-        from AppKit import NSScreen
-
         visible = NSScreen.screens()[0].visibleFrame()
         min_x = visible.origin.x
         max_x = visible.origin.x + visible.size.width - width
