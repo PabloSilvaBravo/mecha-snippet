@@ -1,0 +1,3 @@
+# Dependencias solo para empaquetar la app como .app (no son necesarias para correr en desarrollo).
+-r requirements.txt
+py2app>=0.28
