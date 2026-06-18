@@ -1,0 +1,8 @@
+{
+  "fact": "Datos de facturación de ejemplo:\n\nEMPRESA EJEMPLO SPA\nRUT 00.000.000-0\nGiro: Venta de productos de ejemplo\nDirección: Calle Falsa 123, Santiago\nEmail: ejemplo@ejemplo.cl",
+  "pago": "Los datos de transferencia son:\n\nEMPRESA EJEMPLO SPA\n00.000.000-0\nCta. Corriente Banco Ejemplo N° 00000000\nejemplo@ejemplo.cl",
+  "china": "Thank you for your support. Please find the order details below.\n\nWe would like to confirm the quantities and prices before proceeding.\n\nBest regards.",
+  "saludo": "Hola, gracias por escribir a la tienda. ¿En qué te puedo ayudar?",
+  "despedida": "Quedo atento a cualquier consulta. ¡Que tengas un buen día!",
+  "correo": "ejemplo@ejemplo.cl"
+}

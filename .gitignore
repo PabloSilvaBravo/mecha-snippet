@@ -1,0 +1,32 @@
+# =========================================================================
+#  SEGURIDAD: los snippets REALES nunca se suben al repo.
+#  El repo solo publica snippets.example.json (datos ficticios).
+# =========================================================================
+snippets.json
+**/snippets.json
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Artefactos de build (.app, py2app)
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Bytecode / caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# macOS
+.DS_Store
+.AppleDouble
+Icon?
+
+# Editores
+.idea/
+.vscode/
+*.swp
