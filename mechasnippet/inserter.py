@@ -11,7 +11,9 @@ Enviar eventos de teclado requiere permiso de Accesibilidad (el mismo del
 listener global).
 """
 
+import sys
 import threading
+import traceback
 
 import Quartz
 from AppKit import NSPasteboard, NSPasteboardTypeString
@@ -34,18 +36,29 @@ def _post_key(keycode, flags=0):
 
 def insert_snippet(content, backspaces=2):
     """Borra el disparador y pega `content` en la app que tenga el foco."""
-    pasteboard = NSPasteboard.generalPasteboard()
-    previous = pasteboard.stringForType_(NSPasteboardTypeString)
+    try:
+        sys.stderr.write(
+            "[mecha] insert_snippet: borrando %d, pegando %d chars\n"
+            % (backspaces, len(content))
+        )
+        sys.stderr.flush()
 
-    for _ in range(backspaces):
-        _post_key(KEY_DELETE)
+        pasteboard = NSPasteboard.generalPasteboard()
+        previous = pasteboard.stringForType_(NSPasteboardTypeString)
 
-    pasteboard.clearContents()
-    pasteboard.setString_forType_(content, NSPasteboardTypeString)
+        for _ in range(backspaces):
+            _post_key(KEY_DELETE)
 
-    _post_key(KEY_V, Quartz.kCGEventFlagMaskCommand)
+        pasteboard.clearContents()
+        pasteboard.setString_forType_(content, NSPasteboardTypeString)
 
-    _schedule_restore(previous)
+        _post_key(KEY_V, Quartz.kCGEventFlagMaskCommand)
+
+        _schedule_restore(previous)
+    except Exception:
+        sys.stderr.write("[mecha] ERROR en insert_snippet:\n")
+        traceback.print_exc()
+        sys.stderr.flush()
 
 
 def _schedule_restore(previous):

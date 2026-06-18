@@ -4,6 +4,8 @@ Conecta el listener global (hotkey) con el panel y el insertador:
   hotkey detecta "//"  ->  se muestra el panel  ->  Enter inserta el snippet.
 """
 
+import subprocess
+
 import objc
 from AppKit import (
     NSApplication,
@@ -15,7 +17,7 @@ from AppKit import (
     NSVariableStatusItemLength,
     NSWorkspace,
 )
-from Foundation import NSObject, NSURL
+from Foundation import NSObject
 from PyObjCTools import AppHelper
 
 from . import inserter
@@ -23,7 +25,7 @@ from .hotkey import HotkeyListener
 from .panel import SnippetController
 from .store import SnippetStore
 
-INSERT_DELAY = 0.08  # margen para que el foco vuelva a la app antes de pegar
+INSERT_DELAY = 0.15  # margen para que el foco vuelva a la app antes de pegar
 
 
 class AppDelegate(NSObject):
@@ -103,8 +105,9 @@ class AppDelegate(NSObject):
         self.store.reload()
 
     def openSnippetsFile_(self, sender):
-        url = NSURL.fileURLWithPath_(self.store.path)
-        NSWorkspace.sharedWorkspace().openURL_(url)
+        # Abrir explícitamente con TextEdit. Si usáramos la app por defecto del
+        # sistema para .json, en algunos Mac es Xcode (y abre su instalador).
+        subprocess.Popen(["/usr/bin/open", "-a", "TextEdit", self.store.path])
 
     def togglePause_(self, sender):
         self._paused = not self._paused
