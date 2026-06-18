@@ -118,12 +118,34 @@ en la barra de menú.
 
 ## Seguridad y privacidad
 
-- Tu `snippets.json` **real vive fuera del repo** (Application Support) y está en
-  `.gitignore`. **Nunca se sube a GitHub.**
-- El repo público solo incluye `snippets.example.json` con **datos ficticios**.
-- No hay red, ni telemetría, ni nube. Todo es local.
-- **No pongas tus datos reales en `snippets.example.json`** ni hagas commit de un
+**El código es público; tu contenido es privado y local en cada Mac.**
+
+- Tus snippets viven **solo en este equipo**, en
+  `~/Library/Application Support/MechaSnippet/snippets.json`. Es por usuario y por
+  Mac: lo que guardes en un computador no viaja a ningún otro.
+- **No hay red, ni telemetría, ni nube.** La app no hace una sola conexión: cargar,
+  buscar y pegar ocurre 100% en memoria local.
+- Tu `snippets.json` real está en `.gitignore`, así que **nunca se sube a GitHub**.
+  El repo público solo incluye `snippets.example.json` con **datos ficticios**.
+- **No pongas datos reales en `snippets.example.json`** ni hagas commit de un
   `snippets.json` con información sensible.
+- El archivo **no está cifrado** (JSON en claro, como casi todos los expansores de
+  texto). Queda protegido por tu cuenta de macOS y FileVault. Si quieres
+  respaldarlo o sincronizarlo entre tus equipos, hazlo por un canal **privado**
+  tuyo (iCloud Drive, un repo privado), nunca por el repo público.
+
+### Cambiar dónde se guarda (opcional)
+
+Si prefieres que este Mac use otra ruta para tu archivo privado, define la
+variable de entorno `MECHA_SNIPPET_FILE` (acepta un archivo o una carpeta):
+
+```bash
+export MECHA_SNIPPET_FILE="$HOME/Documentos/mis-snippets.json"
+python -m mechasnippet
+```
+
+Si apuntas a una carpeta, la app usará `snippets.json` dentro de ella. La carpeta
+se crea sola si no existe.
 
 ## Rendimiento
 
