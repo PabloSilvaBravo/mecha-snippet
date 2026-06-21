@@ -353,10 +353,11 @@ class SnippetController(NSObject):
         if self._prev_app is not None:
             self._prev_app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
 
+        # No reactivamos el hotkey aquí: lo hace la app DESPUÉS de pegar
+        # (AppDelegate._on_insert / _rearm_hotkey), para que el Cmd+V sintético
+        # no reactive la detección de '//'.
         if self.on_insert:
             self.on_insert(content)
-        if self.on_close:
-            self.on_close()
         self._closing = False
 
     # ------------------------------------------------------------------- layout
@@ -381,7 +382,8 @@ class SnippetController(NSObject):
                 widest = w
 
         content_width = widest + PADDING * 2 + 28.0  # inset de celda + scroller
-        screen_width = NSScreen.screens()[0].visibleFrame().size.width
+        screen = self._screen_containing(self._anchor[0], self._anchor[1])
+        screen_width = screen.visibleFrame().size.width
         max_width = min(MAX_WIDTH, screen_width * 0.7)
         return max(MIN_WIDTH, min(max_width, content_width))
 
@@ -408,8 +410,18 @@ class SnippetController(NSObject):
         self._column.setWidth_(width - PADDING * 2)
 
     @staticmethod
+    def _screen_containing(x, y):
+        screens = NSScreen.screens()
+        for s in screens:
+            f = s.frame()
+            if (f.origin.x <= x < f.origin.x + f.size.width and
+                    f.origin.y <= y < f.origin.y + f.size.height):
+                return s
+        return NSScreen.mainScreen() or screens[0]
+
+    @staticmethod
     def _clamp_to_screen(x, top_y, width, height):
-        visible = NSScreen.screens()[0].visibleFrame()
+        visible = SnippetController._screen_containing(x, top_y).visibleFrame()
         min_x = visible.origin.x
         max_x = visible.origin.x + visible.size.width - width
         min_top = visible.origin.y + height

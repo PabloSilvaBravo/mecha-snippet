@@ -11,6 +11,7 @@ Para miles de entradas el costo es de unos pocos MB y la carga es instantánea.
 import json
 import os
 import shutil
+import sys
 
 from . import paths
 
@@ -33,22 +34,35 @@ class SnippetStore:
             else:
                 with open(self.path, "w", encoding="utf-8") as fh:
                     json.dump({}, fh, ensure_ascii=False, indent=2)
+            os.chmod(self.path, 0o600)  # datos privados: solo el dueño
         except OSError:
             # Si no se puede escribir, seguimos con una lista vacía en memoria.
             pass
 
     def reload(self):
-        """Relee el archivo desde disco. Tolera JSON inválido sin crashear."""
-        data = self._read_raw()
-        self._items = self._normalize(data)
-        return len(self._items)
+        """Relee el archivo desde disco.
 
-    def _read_raw(self):
+        Si el JSON está corrupto (p.ej. una coma de más al editar), CONSERVA la
+        última versión buena en memoria en vez de borrar todos los snippets.
+        """
         try:
             with open(self.path, "r", encoding="utf-8") as fh:
-                return json.load(fh)
-        except (OSError, ValueError):
-            return {}
+                content = fh.read()
+        except OSError:
+            return len(self._items)  # ausente/ilegible: conservar lo que haya
+        if not content.strip():
+            self._items = []  # archivo realmente vacío
+            return 0
+        try:
+            data = json.loads(content)
+        except ValueError:
+            sys.stderr.write(
+                "[mecha] snippets.json inválido: conservo la última versión buena\n"
+            )
+            sys.stderr.flush()
+            return len(self._items)
+        self._items = self._normalize(data)
+        return len(self._items)
 
     @staticmethod
     def _normalize(data):
