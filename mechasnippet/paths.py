@@ -21,6 +21,10 @@ def app_support_dir():
     base = os.path.expanduser("~/Library/Application Support")
     path = os.path.join(base, APP_DIR_NAME)
     os.makedirs(path, exist_ok=True)
+    try:
+        os.chmod(path, 0o700)  # carpeta privada: solo el dueño
+    except OSError:
+        pass
     return path
 
 

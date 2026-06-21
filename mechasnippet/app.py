@@ -5,6 +5,7 @@ Conecta el listener global (hotkey) con el panel y el insertador:
 """
 
 import subprocess
+import sys
 
 import objc
 from AppKit import (
@@ -31,6 +32,7 @@ INSERT_DELAY = 0.15  # margen para que el foco vuelva a la app antes de pegar
 class AppDelegate(NSObject):
     def applicationDidFinishLaunching_(self, notification):
         self.store = SnippetStore()
+        self._prompt_accessibility()
 
         self.controller = (
             SnippetController.alloc().initWithStore_onInsert_onClose_(
@@ -43,6 +45,28 @@ class AppDelegate(NSObject):
 
         self._paused = False
         self._build_status_item()
+
+    @objc.python_method
+    def _prompt_accessibility(self):
+        """Pide Accesibilidad (necesaria para ENVIAR el Cmd+V al pegar).
+
+        Distinta del Monitoreo de entrada (que solo permite ESCUCHAR el "//").
+        Mostrar el diálogo agrega el binario a la lista correcta de Accesibilidad.
+        """
+        try:
+            import ApplicationServices as AX
+
+            prompt_key = getattr(AX, "kAXTrustedCheckOptionPrompt", None)
+            if prompt_key is not None:
+                trusted = AX.AXIsProcessTrustedWithOptions({prompt_key: True})
+            else:
+                trusted = AX.AXIsProcessTrusted()
+            sys.stderr.write("[mecha] Accesibilidad concedida: %s\n" % bool(trusted))
+            sys.stderr.flush()
+        except Exception:
+            import traceback
+
+            traceback.print_exc()
 
     # ------------------------------------------------------------- barra de menú
     @objc.python_method
@@ -92,8 +116,19 @@ class AppDelegate(NSObject):
 
     @objc.python_method
     def _on_insert(self, content):
-        # Pequeño retardo para que el foco regrese a la app destino antes de pegar.
-        AppHelper.callLater(INSERT_DELAY, inserter.insert_snippet, content)
+        # Pega tras un pequeño retardo (para que vuelva el foco) y RECIÉN AHÍ
+        # reactiva el listener, para que el Cmd+V sintético no reactive la
+        # detección de '//' ni se coma el próximo disparador.
+        def do_insert():
+            inserter.insert_snippet(content)
+            AppHelper.callLater(0.1, self._rearm_hotkey)
+
+        AppHelper.callLater(INSERT_DELAY, do_insert)
+
+    @objc.python_method
+    def _rearm_hotkey(self):
+        self.hotkey.reset()
+        self.hotkey.suspended = False
 
     # --------------------------------------------------------------- acciones de menú
     def showFromMenu_(self, sender):
