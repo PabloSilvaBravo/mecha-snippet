@@ -13,9 +13,21 @@ Local, liviano y sin nube.
 [![License](https://img.shields.io/badge/License-MIT-22aa55)](LICENSE)
 [![Por MechatronicStore](https://img.shields.io/badge/por-MechatronicStore-FF6A00)](https://mechatronicstore.cl)
 
+[![Descargar DMG](https://img.shields.io/github/v/release/PabloSilvaBravo/mecha-snippet?label=Descargar%20DMG&color=0a7a3a)](https://github.com/PabloSilvaBravo/mecha-snippet/releases/latest)
+
 </div>
 
 ---
+
+## ⬇️ Descargar (macOS Apple Silicon)
+
+1. Baja el **[DMG más reciente](https://github.com/PabloSilvaBravo/mecha-snippet/releases/latest)**.
+2. Ábrelo y arrastra **Mecha Snippet** a la carpeta **Aplicaciones**.
+3. La primera vez: **clic derecho sobre la app → Abrir** (no está notarizada por Apple, así que macOS pide confirmar una sola vez).
+4. Concede **Accesibilidad** y **Monitoreo de entrada** en Ajustes del Sistema > Privacidad y seguridad, y reábrela.
+5. Listo: escribe `//` en cualquier app.
+
+> ¿Prefieres correrla desde el código? Mira la sección **Instalación (desarrollo)** más abajo.
 
 ## ✨ Qué hace
 
