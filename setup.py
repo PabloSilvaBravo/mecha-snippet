@@ -13,8 +13,10 @@ APP = ["run.py"]
 DATA_FILES = ["snippets.example.json"]
 OPTIONS = {
     "argv_emulation": False,
-    "packages": ["mechasnippet"],
-    "includes": ["pynput", "pynput.keyboard", "pynput.mouse"],
+    # Incluir pynput COMPLETO: sus backends de macOS (_darwin) se cargan de forma
+    # dinámica, así que py2app no los detecta por análisis estático y hay que
+    # forzar la copia de todo el paquete.
+    "packages": ["mechasnippet", "pynput"],
     "plist": {
         "CFBundleName": "Mecha Snippet",
         "CFBundleDisplayName": "Mecha Snippet",
