@@ -20,13 +20,13 @@ OPTIONS = {
     "plist": {
         "CFBundleName": "Mecha Snippet",
         "CFBundleDisplayName": "Mecha Snippet",
-        "CFBundleIdentifier": "cl.mechatronicstore.mechasnippet",
+        "CFBundleIdentifier": "io.github.pablosilvabravo.mechasnippet",
         "CFBundleVersion": "1.0.0",
         "CFBundleShortVersionString": "1.0.0",
         # App de fondo: sin ícono en el Dock, solo en la barra de menú.
         "LSUIElement": True,
         "LSMinimumSystemVersion": "12.0",
-        "NSHumanReadableCopyright": "MechatronicStore",
+        "NSHumanReadableCopyright": "Pablo Silva Bravo",
         # Texto que aparece al pedir permisos de automatización.
         "NSAppleEventsUsageDescription": (
             "Mecha Snippet inserta el texto del snippet en la aplicación activa."
