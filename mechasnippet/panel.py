@@ -8,8 +8,9 @@ el texto vuelve solo a su lugar. Se cierra con Esc o al perder el foco
 Características:
   - Fondo Liquid Glass (NSGlassEffectView en macOS 26+, con fallback).
   - Ancho adaptativo al texto del snippet más largo visible.
-  - Navegación con flechas mediante un monitor de eventos local, que funciona
-    apenas el panel se abre (sin depender del campo de texto).
+  - Navegación con flechas mediante un monitor de eventos local.
+  - Aparece centrado en la pantalla del mouse y se puede arrastrar.
+  - Al pasar el mouse (o seleccionar) un atajo, despliega su texto COMPLETO.
 """
 
 import objc
@@ -30,6 +31,7 @@ from AppKit import (
     NSTableView,
     NSTableViewSelectionHighlightStyleRegular,
     NSTextField,
+    NSTextView,
     NSView,
     NSViewHeightSizable,
     NSViewWidthSizable,
@@ -37,15 +39,17 @@ from AppKit import (
     NSWindowStyleMaskBorderless,
     NSWindowStyleMaskNonactivatingPanel,
 )
-from Foundation import NSMakeRect, NSObject, NSIndexSet
+from Foundation import NSMakeRect, NSMakeSize, NSObject, NSIndexSet
 
 from . import matcher
 
 SEARCH_HEIGHT = 30.0
 ROW_HEIGHT = 30.0
 MAX_VISIBLE_ROWS = 8
+PREVIEW_HEIGHT = 88.0
 PADDING = 10.0
-CORNER_RADIUS = 14.0
+CORNER_RADIUS = 22.0
+GLASS_ALPHA = 0.85  # <1.0 = más translúcido (1.0 = opaco normal)
 MIN_WIDTH = 300.0
 MAX_WIDTH = 760.0
 PREVIEW_MAX_CHARS = 140
@@ -68,6 +72,18 @@ class _KeyablePanel(NSPanel):
         return False
 
 
+class _DragView(NSView):
+    """Vista de fondo: permite arrastrar la ventana desde su área vacía."""
+
+    def mouseDown_(self, event):
+        window = self.window()
+        if window is not None:
+            window.performWindowDragWithEvent_(event)
+
+    def mouseDownCanMoveWindow(self):
+        return True
+
+
 class SnippetController(NSObject):
     """Dueño del panel. Maneja búsqueda, navegación, selección e inserción."""
 
@@ -83,7 +99,8 @@ class SnippetController(NSObject):
         self._open = False
         self._closing = False
         self._prev_app = None
-        self._anchor = (0.0, 0.0)
+        self._needs_center = True
+        self._preview_visible = False
         self._row_font = NSFont.systemFontOfSize_(13)
         self._search_font = NSFont.systemFontOfSize_(15)
         self._build_panel()
@@ -102,6 +119,8 @@ class SnippetController(NSObject):
         panel.setOpaque_(False)
         panel.setBackgroundColor_(NSColor.clearColor())
         panel.setHasShadow_(True)
+        panel.setAlphaValue_(GLASS_ALPHA)  # un toque más translúcido
+        panel.setMovableByWindowBackground_(True)
         panel.setDelegate_(self)
 
         background, inner = self._make_background(rect)
@@ -120,7 +139,7 @@ class SnippetController(NSObject):
         inner.addSubview_(search)
         self._search = search
 
-        # Lista de resultados (NSTableView dentro de un NSScrollView)
+        # Lista de resultados
         scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(0, 0, MIN_WIDTH, 0))
         scroll.setHasVerticalScroller_(True)
         scroll.setAutohidesScrollers_(True)
@@ -138,6 +157,7 @@ class SnippetController(NSObject):
         table.setDataSource_(self)
         table.setDelegate_(self)
         table.setTarget_(self)
+        table.setAction_("singleClick:")
         table.setDoubleAction_("doubleClick:")
 
         column = NSTableColumn.alloc().initWithIdentifier_("snippet")
@@ -150,24 +170,45 @@ class SnippetController(NSObject):
         self._table = table
         self._column = column
 
+        # Vista previa (texto COMPLETO del atajo bajo el mouse / seleccionado)
+        preview_scroll = NSScrollView.alloc().initWithFrame_(
+            NSMakeRect(0, 0, MIN_WIDTH, PREVIEW_HEIGHT)
+        )
+        preview_scroll.setHasVerticalScroller_(True)
+        preview_scroll.setAutohidesScrollers_(True)
+        preview_scroll.setDrawsBackground_(False)
+        preview_scroll.setBorderType_(0)
+        preview_scroll.setHidden_(True)
+
+        preview = NSTextView.alloc().initWithFrame_(
+            NSMakeRect(0, 0, MIN_WIDTH, PREVIEW_HEIGHT)
+        )
+        preview.setEditable_(False)
+        preview.setSelectable_(True)
+        preview.setDrawsBackground_(False)
+        preview.setFont_(NSFont.systemFontOfSize_(12))
+        preview.setTextContainerInset_(NSMakeSize(2.0, 2.0))
+        preview.setHorizontallyResizable_(False)
+        preview.setAutoresizingMask_(NSViewWidthSizable)
+        preview.textContainer().setWidthTracksTextView_(True)
+        preview_scroll.setDocumentView_(preview)
+        inner.addSubview_(preview_scroll)
+        self._preview = preview
+        self._preview_scroll = preview_scroll
+
         self._panel = panel
         self._background = background
         self._inner = inner
 
-        # Monitor de teclado: maneja flechas, Enter y Esc apenas el panel está
-        # abierto, sin depender de que el campo de texto los reenvíe.
+        # Monitor de teclado: flechas, Enter y Esc apenas el panel está abierto.
         self._monitor = NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
             NSEventMaskKeyDown, self._handle_key_event
         )
 
     @objc.python_method
     def _make_background(self, rect):
-        """Devuelve (vista_de_fondo, contenedor_interno).
-
-        Usa Liquid Glass (NSGlassEffectView) si está disponible; si no, cae a
-        NSVisualEffectView y, en último caso, a una vista con color sólido.
-        """
-        inner = NSView.alloc().initWithFrame_(rect)
+        """Devuelve (vista_de_fondo, contenedor_interno arrastrable)."""
+        inner = _DragView.alloc().initWithFrame_(rect)
         inner.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
 
         appkit = __import__("AppKit")
@@ -219,12 +260,11 @@ class SnippetController(NSObject):
     # ------------------------------------------------------------------- mostrar/ocultar
     @objc.python_method
     def show(self):
-        from .caret import panel_top_left
-
         self._prev_app = NSWorkspace.sharedWorkspace().frontmostApplication()
         self.store.reload()
         self._search.setStringValue_("")
-        self._anchor = panel_top_left()
+        self._needs_center = True  # cada apertura parte centrado en pantalla
+        self._preview_visible = False
         self._open = True
         self._closing = False
         self._apply_filter("")
@@ -246,6 +286,9 @@ class SnippetController(NSObject):
     def _apply_filter(self, query):
         self._results = matcher.filter_snippets(self.store.items, query)
         self._selected = 0 if self._results else -1
+        # La vista previa solo aparece tras un clic o navegación con flechas,
+        # no al filtrar; se oculta de nuevo en cada cambio de búsqueda.
+        self._preview_visible = False
         self._table.reloadData()
         self._sync_selection()
 
@@ -257,6 +300,14 @@ class SnippetController(NSObject):
             self._table.scrollRowToVisible_(self._selected)
         else:
             self._table.deselectAll_(None)
+        self._update_preview()
+
+    @objc.python_method
+    def _update_preview(self):
+        if 0 <= self._selected < len(self._results):
+            self._preview.setString_(self._results[self._selected][1])
+        else:
+            self._preview.setString_("")
 
     @objc.python_method
     def _row_text(self, name, content):
@@ -266,6 +317,16 @@ class SnippetController(NSObject):
         if preview:
             return "%s     ·     %s" % (name, preview)
         return name
+
+    @objc.python_method
+    def _show_preview_for_selection(self):
+        """Muestra (o actualiza) la vista previa del atajo seleccionado."""
+        if not self._preview_visible:
+            self._preview_visible = True
+            self._sync_selection()
+            self._layout_and_place()
+        else:
+            self._sync_selection()
 
     # ----------------------------------------------------------- monitor de teclado
     @objc.python_method
@@ -292,7 +353,7 @@ class SnippetController(NSObject):
         if not self._results:
             return
         self._selected = max(0, min(len(self._results) - 1, self._selected + delta))
-        self._sync_selection()
+        self._show_preview_for_selection()
 
     # ----------------------------------------------------------- delegado NSTextField
     def controlTextDidChange_(self, notification):
@@ -301,7 +362,6 @@ class SnippetController(NSObject):
 
     # ----------------------------------------------------------- delegado NSWindow
     def windowDidResignKey_(self, notification):
-        # Click fuera del panel: cerrar (salvo que ya estemos insertando).
         if self._open and not self._closing:
             self.hide()
 
@@ -332,6 +392,14 @@ class SnippetController(NSObject):
         selected = self._table.selectedRow()
         if selected >= 0:
             self._selected = selected
+
+    def singleClick_(self, sender):
+        # Un clic en una fila abre/actualiza la vista previa (no el hover).
+        row = self._table.clickedRow()
+        if row < 0:
+            return
+        self._selected = row
+        self._show_preview_for_selection()
 
     def doubleClick_(self, sender):
         clicked = self._table.clickedRow()
@@ -375,28 +443,43 @@ class SnippetController(NSObject):
         widest = self._measure(
             self._search.stringValue() or "Buscar snippet…", self._search_font
         )
-        # Medimos hasta 300 filas para no penalizar catálogos enormes.
         for name, content in self._results[:300]:
             w = self._measure(self._row_text(name, content), self._row_font)
             if w > widest:
                 widest = w
 
         content_width = widest + PADDING * 2 + 28.0  # inset de celda + scroller
-        screen = self._screen_containing(self._anchor[0], self._anchor[1])
-        screen_width = screen.visibleFrame().size.width
+        loc = NSEvent.mouseLocation()
+        screen_width = self._screen_containing(loc.x, loc.y).visibleFrame().size.width
         max_width = min(MAX_WIDTH, screen_width * 0.7)
         return max(MIN_WIDTH, min(max_width, content_width))
 
     @objc.python_method
     def _layout_and_place(self):
         width = self._compute_width()
-        rows = max(1, min(MAX_VISIBLE_ROWS, len(self._results)))
-        list_height = rows * ROW_HEIGHT if self._results else 0.0
-        total = SEARCH_HEIGHT + PADDING * 2 + list_height
-        if self._results:
-            total += PADDING  # respiro entre buscador y lista
+        has_results = bool(self._results)
+        rows = max(1, min(MAX_VISIBLE_ROWS, len(self._results))) if has_results else 0
+        list_height = rows * ROW_HEIGHT if has_results else 0.0
+        preview_height = PREVIEW_HEIGHT if (has_results and self._preview_visible) else 0.0
 
-        x, top = self._clamp_to_screen(self._anchor[0], self._anchor[1], width, total)
+        total = SEARCH_HEIGHT + PADDING * 2
+        if has_results:
+            total += PADDING + list_height
+        if preview_height:
+            total += PADDING + preview_height
+
+        if self._needs_center:
+            loc = NSEvent.mouseLocation()
+            visible = self._screen_containing(loc.x, loc.y).visibleFrame()
+            x = visible.origin.x + (visible.size.width - width) / 2.0
+            top = visible.origin.y + (visible.size.height + total) / 2.0
+            self._needs_center = False
+        else:
+            frame = self._panel.frame()
+            x = frame.origin.x
+            top = frame.origin.y + frame.size.height
+
+        x, top = self._clamp_to_screen(x, top, width, total)
         self._panel.setFrame_display_(NSMakeRect(x, top - total, width, total), True)
 
         self._background.setFrame_(NSMakeRect(0, 0, width, total))
@@ -404,10 +487,23 @@ class SnippetController(NSObject):
         self._search.setFrame_(
             NSMakeRect(PADDING, total - PADDING - SEARCH_HEIGHT, width - PADDING * 2, SEARCH_HEIGHT)
         )
-        self._scroll.setFrame_(
-            NSMakeRect(PADDING, PADDING if self._results else 0, width - PADDING * 2, list_height)
-        )
-        self._column.setWidth_(width - PADDING * 2)
+
+        inner_w = width - PADDING * 2
+        y = PADDING
+        if preview_height:
+            self._preview_scroll.setHidden_(False)
+            self._preview_scroll.setFrame_(NSMakeRect(PADDING, y, inner_w, preview_height))
+            y += preview_height + PADDING
+        else:
+            self._preview_scroll.setHidden_(True)
+
+        if has_results:
+            self._scroll.setHidden_(False)
+            self._scroll.setFrame_(NSMakeRect(PADDING, y, inner_w, list_height))
+        else:
+            self._scroll.setHidden_(True)
+
+        self._column.setWidth_(inner_w)
 
     @staticmethod
     def _screen_containing(x, y):

@@ -3,10 +3,12 @@
 Expansor de texto nativo para **macOS (Apple Silicon)**, escrito en Python.
 
 Corre en segundo plano y, cuando escribes `//` en cualquier app, abre un panel
-flotante junto al cursor para buscar tus snippets y pegarlos al instante.
+flotante centrado para buscar tus snippets y pegarlos al instante.
 
 - Detección global del disparador `//` en cualquier aplicación.
-- Panel flotante con buscador en tiempo real y navegación con `↑` `↓`.
+- Panel con fondo Liquid Glass, centrado en pantalla y arrastrable.
+- Buscador en tiempo real y navegación con `↑` `↓`.
+- Vista previa del texto completo del snippet al hacer clic o navegar con flechas.
 - `Enter` borra el `//` y pega el snippet completo (soporta texto multilínea).
 - `Esc` o click fuera para cerrar.
 - Ícono en la barra de menú: recargar, abrir el archivo, pausar, salir.
@@ -19,17 +21,16 @@ flotante junto al cursor para buscar tus snippets y pegarlos al instante.
 mechasnippet/
 ├── app.py        Ciclo de vida, ícono de barra de menú, cableado general
 ├── hotkey.py     Listener de teclado global (pynput) que detecta "//"
-├── panel.py      NSPanel flotante: buscador + lista de resultados
-├── caret.py      Posición del panel (cursor de texto vía Accesibilidad, o mouse)
+├── panel.py      Panel Liquid Glass: buscador, lista y vista previa (centrado/arrastrable)
 ├── inserter.py   Borra "//" y pega el snippet (NSPasteboard + Cmd+V)
 ├── store.py      Carga/recarga de snippets.json en memoria
 ├── matcher.py    Filtro en tiempo real (sin tildes, multipalabra, con ranking)
 └── paths.py      Rutas (Application Support, etc.)
 ```
 
-**Flujo:** `hotkey` detecta `//` y avisa al hilo principal, `panel` aparece junto
-al cursor, escribes para filtrar, `Enter` cierra el panel, reactiva la app
-anterior, borra el `//` y pega el snippet vía portapapeles (restaurando tu
+**Flujo:** `hotkey` detecta `//` y avisa al hilo principal, `panel` aparece
+centrado en pantalla, escribes para filtrar, `Enter` cierra el panel, reactiva la
+app anterior, borra el `//` y pega el snippet vía portapapeles (restaurando tu
 portapapeles original después).
 
 **Stack:** Python 3 + PyObjC (AppKit/Quartz nativos) + pynput. La app se registra
@@ -74,11 +75,12 @@ la app.
 ## Uso
 
 1. Escribe `//` en cualquier app (Notas, Mail, navegador, etc.).
-2. Aparece el panel. Escribe para filtrar; navega con `↑` `↓`.
-3. `Enter` pega el snippet seleccionado (o doble click en la lista).
-4. `Esc` o click fuera para cerrar sin pegar.
+2. Aparece el panel centrado. Escribe para filtrar; navega con `↑` `↓`.
+3. Haz clic en un snippet o navega con flechas para ver su texto completo en la vista previa.
+4. `Enter` pega el snippet seleccionado (o doble clic en la lista).
+5. `Esc` o clic fuera para cerrar sin pegar. Puedes arrastrar el panel para moverlo.
 
-El disparador NO se activa dentro de URLs (`http://`) ni de `///`.
+El disparador no se activa dentro de URLs (no salta con `http://`).
 
 ## Formato de snippets.json
 
@@ -157,11 +159,9 @@ se crea sola si no existe.
 ## Solución de problemas
 
 - **No pasa nada al escribir `//`:** revisa Accesibilidad y Monitoreo de entrada,
-  y reinicia la app.
-- **Aparece junto al mouse y no al cursor de texto:** esa app no expone la
-  posición del caret vía Accesibilidad; es el comportamiento de respaldo.
-- **No pega el texto:** confirma el permiso de Accesibilidad (necesario para
-  enviar `Cmd+V`).
+  y reinicia la app (el permiso se toma al arrancar).
+- **No pega el texto:** confirma el permiso de **Accesibilidad** (necesario para
+  enviar `Cmd+V`); es distinto del de Monitoreo de entrada.
 
 ## Licencia
 
