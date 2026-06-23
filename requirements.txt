@@ -1,8 +1,0 @@
-# Dependencias de runtime de Mecha Snippet
-# Bindings nativos de macOS (AppKit, Quartz, Accessibility) + listener de teclado global.
-
-pyobjc-core>=10.0
-pyobjc-framework-Cocoa>=10.0
-pyobjc-framework-Quartz>=10.0
-pyobjc-framework-ApplicationServices>=10.0
-pynput>=1.7.6
