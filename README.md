@@ -4,12 +4,12 @@
 
 ### Expansor de texto nativo para macOS. Escribe `//`, busca y pega.
 
-Un panel flotante con fondo Liquid Glass que aparece en cualquier app cuando escribes `//`.
-Local, liviano y sin nube.
+Un panel flotante con Liquid Glass que aparece en cualquier app cuando escribes `//`.
+Local, liviano y sin nube. Ahora reescrito en Swift nativo.
 
-[![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-111111?logo=apple&logoColor=white)](https://www.apple.com/macos/)
-[![PyObjC](https://img.shields.io/badge/UI-PyObjC%20nativo-4B8BBE)](https://pyobjc.readthedocs.io/)
+[![Swift](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)](https://swift.org/)
+[![macOS](https://img.shields.io/badge/macOS-26%20Tahoe-111111?logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![Liquid Glass](https://img.shields.io/badge/UI-SwiftUI%20%2B%20AppKit-4B8BBE)](https://developer.apple.com/xcode/swiftui/)
 [![License](https://img.shields.io/badge/License-MIT-22aa55)](LICENSE)
 [![por Pablo Silva Bravo](https://img.shields.io/badge/por-Pablo%20Silva%20Bravo-4B8BBE)](https://github.com/PabloSilvaBravo)
 
@@ -19,135 +19,88 @@ Local, liviano y sin nube.
 
 ---
 
-## ⬇️ Descargar (macOS Apple Silicon)
+## ⬇️ Descargar (macOS 26 Tahoe, Apple Silicon)
 
 1. Baja el **[DMG más reciente](https://github.com/PabloSilvaBravo/mecha-snippet/releases/latest)**.
 2. Ábrelo y arrastra **Mecha Snippet** a la carpeta **Aplicaciones**.
-3. La primera vez: **clic derecho sobre la app → Abrir** (no está notarizada por Apple, así que macOS pide confirmar una sola vez).
-4. Concede **Accesibilidad** y **Monitoreo de entrada** en Ajustes del Sistema > Privacidad y seguridad, y reábrela.
+3. La primera vez: clic derecho sobre la app y luego **Abrir** (no está notarizada por Apple, así que macOS pide confirmar una sola vez).
+4. Al abrirla por primera vez te guía para conceder los dos permisos que necesita.
 5. Listo: escribe `//` en cualquier app.
 
-> ¿Prefieres correrla desde el código? Mira la sección **Instalación (desarrollo)** más abajo.
+> ¿Prefieres correrla desde el código? Mira **Desarrollo** más abajo.
 
 ## ✨ Qué hace
 
 - ⚡ **Disparador global `//`** en cualquier aplicación, sin abrir nada.
-- 🪟 **Panel Liquid Glass** centrado en pantalla y arrastrable.
+- 🪟 **Panel Liquid Glass** con la lista a la izquierda y la **vista previa a la derecha**. Recuerda dónde lo dejaste.
 - 🔎 **Buscador en tiempo real** (sin tildes, multipalabra, con ranking) y navegación con `↑` `↓`.
-- 👁️ **Vista previa del texto completo** del snippet al hacer clic o navegar con flechas.
-- 📋 **Enter** borra el `//` y pega el snippet completo, incluso multilínea.
-- 🍫 **Ícono en la barra de menú**: recargar, abrir el archivo, pausar, salir.
-- 🚀 **Escala a miles de snippets** (carga en memoria + lista virtualizada).
+- 📋 **Enter** borra el `//` y pega el snippet completo, preservando tu portapapeles.
+- ✏️ **Editor visual de snippets**: una ventana de gestión para crear, editar, borrar, duplicar y **reordenar arrastrando**, más un mini formulario para sumar uno rápido. Sin tocar JSON a mano.
+- 🚀 **Inicio automático**: arranca al abrir sesión y se mantiene activo.
+- 🧭 **Onboarding** que te guía a conceder los permisos en la primera corrida.
+- 🍫 **Ícono en la barra de menú**: buscar, nuevo, gestionar, recargar, pausar, salir.
 - 🔒 **100% local**: sin servicios externos, sin telemetría, sin nube.
 
 ## ⚙️ Cómo funciona
 
-```
-mechasnippet/
-├── app.py        Ciclo de vida, ícono de barra de menú, cableado general
-├── hotkey.py     Listener de teclado global (pynput) que detecta "//"
-├── panel.py      Panel Liquid Glass: buscador, lista y vista previa (centrado/arrastrable)
-├── inserter.py   Borra "//" y pega el snippet (NSPasteboard + Cmd+V)
-├── store.py      Carga/recarga de snippets.json en memoria
-├── matcher.py    Filtro en tiempo real (sin tildes, multipalabra, con ranking)
-└── paths.py      Rutas (Application Support, etc.)
-```
+- **Núcleo** (`MechaSnippetCore`): modelo, almacenamiento y búsqueda. Lógica pura con tests.
+- **App** (`MechaSnippet`): SwiftUI para las vistas (gestión, mini formulario, onboarding, menú) y AppKit para el panel flotante no activante y el `CGEventTap` global.
 
-**Flujo:** `hotkey` detecta `//` y avisa al hilo principal, `panel` aparece centrado,
-escribes para filtrar, `Enter` cierra el panel, reactiva la app anterior, borra el
-`//` y pega el snippet vía portapapeles (restaurando tu portapapeles original después).
+**Flujo:** el `CGEventTap` detecta `//`, aparece el panel, escribes para filtrar, `Enter` lo cierra, reactiva la app anterior, borra el `//` y pega el snippet vía portapapeles (restaurando el tuyo después). La app es de barra de menú (`LSUIElement`): sin ícono en el Dock y con consumo mínimo en reposo.
 
-**Stack:** Python 3 + PyObjC (AppKit/Quartz nativos) + pynput. La app se registra como
-*accessory* (`LSUIElement`): no aparece en el Dock y su consumo en reposo es mínimo
-(el listener es por eventos, no hace polling).
+## 🚀 Desarrollo
 
-## 🚀 Instalación (desarrollo)
+Requiere Xcode 26 (o Command Line Tools con Swift 6.2+) en Apple Silicon.
 
 ```bash
+git clone https://github.com/PabloSilvaBravo/mecha-snippet.git
 cd mecha-snippet
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m mechasnippet
+swift build              # compilar
+swift test              # tests del núcleo
+./Scripts/build_app.sh  # empaquetar y firmar dist/Mecha Snippet.app
 ```
 
-La primera vez se crea tu archivo real de snippets en
-`~/Library/Application Support/MechaSnippet/snippets.json` (copiado desde
-`snippets.example.json`). Edítalo con tus propios snippets.
+Para el ícono y el DMG:
 
-### Permisos de macOS (imprescindible)
+```bash
+swift Scripts/make_icon_source.swift && ./Scripts/make_icon.sh
+./Scripts/make_dmg.sh   # genera dist/MechaSnippet-<version>.dmg
+```
 
-Para detectar el teclado de forma global y pegar texto, el sistema pide permisos.
-Ve a **Ajustes del Sistema > Privacidad y seguridad** y habilita la app (o tu
-terminal, en desarrollo) en:
+### Permisos de macOS
 
-1. **Accesibilidad** (necesario para pegar con `Cmd+V`)
-2. **Monitoreo de entrada** (necesario para escuchar el `//`)
+La app pide dos permisos en **Ajustes del Sistema > Privacidad y seguridad**:
 
-Tras concederlos, reinicia la app (el permiso se toma al arrancar).
+1. **Monitoreo de entrada**: para escuchar el `//`.
+2. **Accesibilidad**: para pegar con `Cmd+V`.
 
-## ⌨️ Uso
-
-1. Escribe `//` en cualquier app (Notas, Mail, navegador, etc.).
-2. Aparece el panel centrado. Escribe para filtrar; navega con `↑` `↓`.
-3. Haz clic en un snippet o navega con flechas para ver su texto completo en la vista previa.
-4. `Enter` pega el snippet seleccionado (o doble clic en la lista).
-5. `Esc` o clic fuera para cerrar. Puedes arrastrar el panel para moverlo.
-
-El disparador no se activa dentro de URLs (no salta con `http://`).
+El onboarding de la app te lleva al panel exacto de cada uno y detecta cuando los concedes.
 
 ## 📝 Formato de snippets.json
 
-Objeto simple `nombre: contenido` (los saltos de línea van como `\n`):
+Tus snippets viven en `~/Library/Application Support/MechaSnippet/snippets.json`.
+El formato es una lista de objetos `{name, content}` (los saltos de línea van como `\n`):
 
 ```json
-{
-  "pago": "Los datos de transferencia son:\n\nEMPRESA SPA\n00.000.000-0\nCta. Corriente ...",
-  "saludo": "Hola, gracias por escribir."
-}
+[
+  { "name": "saludo", "content": "Hola, ¿en qué te puedo ayudar?" },
+  { "name": "pago", "content": "Datos de transferencia:\n\nEMPRESA SPA\n..." }
+]
 ```
 
-También se acepta una lista de objetos `{"name": "...", "content": "..."}`.
-Tras editar el archivo, usa **Recargar snippets** en el menú (o reinicia).
-
-### Cambiar dónde se guarda (opcional)
-
-Define `MECHA_SNIPPET_FILE` para usar otra ruta (archivo o carpeta):
-
-```bash
-export MECHA_SNIPPET_FILE="$HOME/Documentos/mis-snippets.json"
-python -m mechasnippet
-```
-
-## 📦 Empaquetar como .app
-
-```bash
-source .venv/bin/activate
-pip install -r requirements-build.txt
-python setup.py py2app
-open dist/
-```
-
-Arrastra `Mecha Snippet.app` a `/Applications` y vuelve a concederle Accesibilidad y
-Monitoreo de entrada. Para un arranque estable conviene firmarla con tu Developer ID.
+También se acepta el formato antiguo `{ "nombre": "contenido" }`, y la app repara
+solo los archivos que quedaron con comillas tipográficas (por ejemplo, al editarlos
+en TextEdit). Lo más cómodo igual es usar el editor visual de la app.
 
 ## 🔒 Seguridad y privacidad
 
 **El código es público; tu contenido es privado y local en cada Mac.**
 
-- Tus snippets viven **solo en tu equipo**: `~/Library/Application Support/MechaSnippet/snippets.json`.
-- **Sin red, sin telemetría, sin nube.** Cargar, buscar y pegar ocurre 100% en memoria local.
-- El `snippets.json` real está en `.gitignore`: **nunca se sube**. El repo solo trae
+- Tus snippets viven solo en tu equipo, en `Application Support`.
+- Sin red, sin telemetría, sin nube. Cargar, buscar y pegar ocurre 100% en memoria local.
+- El `snippets.json` real está en `.gitignore`: nunca se sube. El repo solo trae
   `snippets.example.json` con datos ficticios.
-- El archivo no está cifrado (JSON en claro). Queda protegido por tu cuenta de macOS y
-  FileVault. Si lo respaldas o sincronizas, hazlo por un canal privado tuyo, nunca público.
-
-## 🩺 Solución de problemas
-
-- **No pasa nada al escribir `//`:** revisa Accesibilidad y Monitoreo de entrada, y
-  reinicia la app (el permiso se toma al arrancar).
-- **No pega el texto:** confirma el permiso de **Accesibilidad** (necesario para `Cmd+V`);
-  es distinto del de Monitoreo de entrada.
+- El archivo no está cifrado. Queda protegido por tu cuenta de macOS y FileVault.
 
 ## 📄 Licencia
 
