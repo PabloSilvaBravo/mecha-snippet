@@ -13,10 +13,19 @@ final class AppState: ObservableObject {
     private var managerWindow: NSWindow?
     private var quickAddWindow: NSWindow?
     private var onboardingWindow: NSWindow?
+    private var hotkey: HotkeyMonitor!
 
     private init() {
         Paths.seedIfNeeded()
         store = SnippetStore(fileURL: Paths.snippetsURL)
+        hotkey = HotkeyMonitor { [weak self] in self?.onTrigger() }
+        hotkey.start()
+    }
+
+    private func onTrigger() {
+        guard !paused else { return }
+        hotkey.suspended = true
+        showPanel()
     }
 
     /// Crea (o reusa) una NSWindow que hostea una vista SwiftUI. Permite abrir
@@ -50,8 +59,10 @@ final class AppState: ObservableObject {
     // Real en tarea 10 (Inserter). Por ahora solo registra.
     func insert(_ s: Snippet) { print("insertar: \(s.name)") }
 
-    // Real en tarea 9 (rearme del hotkey). Por ahora no-op.
-    private func onPanelClose() {}
+    private func onPanelClose() {
+        hotkey.reset()
+        hotkey.suspended = false
+    }
 
     func showManager() {
         NSApp.activate(ignoringOtherApps: true)
@@ -81,6 +92,9 @@ final class AppState: ObservableObject {
     // Stub completado en tarea 12.
     func showOnboarding() { print("showOnboarding (pendiente)") }
 
-    func togglePause() { paused.toggle() }
+    func togglePause() {
+        paused.toggle()
+        hotkey.enabled = !paused
+    }
     func reload() { store.load() }
 }
