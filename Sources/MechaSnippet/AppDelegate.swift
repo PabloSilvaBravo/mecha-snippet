@@ -19,5 +19,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if env["MECHA_DEBUG_MANAGER"] == "1" { after(0.8) { state.showManager() } }
         if env["MECHA_DEBUG_QUICKADD"] == "1" { after(0.8) { state.showQuickAdd() } }
         if env["MECHA_DEBUG_ONBOARDING"] == "1" { after(0.8) { state.showOnboarding() } }
+        if env["MECHA_DEBUG_LOGINITEM"] == "1" {
+            let result = LoginItem.diagnose()
+            try? result.write(
+                toFile: "/tmp/mecha_loginitem.log", atomically: true, encoding: .utf8
+            )
+            NSLog("[mecha] loginitem diagnose:\n\(result)")
+        }
     }
 }

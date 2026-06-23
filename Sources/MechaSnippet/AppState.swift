@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
 
     let store: SnippetStore
     @Published var paused = false
+    @Published var launchAtLogin = LoginItem.isEnabled
 
     private lazy var panel = SearchPanel()
     private var managerWindow: NSWindow?
@@ -107,5 +108,11 @@ final class AppState: ObservableObject {
         paused.toggle()
         hotkey.enabled = !paused
     }
+
+    func toggleLaunchAtLogin() {
+        if launchAtLogin { LoginItem.disable() } else { LoginItem.enable() }
+        launchAtLogin = LoginItem.isEnabled
+    }
+
     func reload() { store.load() }
 }

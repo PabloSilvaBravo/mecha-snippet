@@ -13,6 +13,10 @@ struct MechaSnippetApp: App {
             Button("Gestionar snippets…") { state.showManager() }
             Button("Recargar") { state.reload() }
             Button(state.paused ? "Reanudar detección" : "Pausar detección") { state.togglePause() }
+            Toggle("Iniciar al abrir sesión", isOn: Binding(
+                get: { state.launchAtLogin },
+                set: { _ in state.toggleLaunchAtLogin() }
+            ))
             Divider()
             Button("Salir de Mecha Snippet") { NSApplication.shared.terminate(nil) }
                 .keyboardShortcut("q")
