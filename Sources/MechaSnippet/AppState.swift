@@ -64,8 +64,21 @@ final class AppState: ObservableObject {
         managerWindow?.makeKeyAndOrderFront(nil)
     }
 
-    // Stubs completados en tareas 8, 12.
-    func showQuickAdd() { print("showQuickAdd (pendiente)") }
+    func showQuickAdd() {
+        NSApp.activate(ignoringOtherApps: true)
+        quickAddWindow?.close()
+        let w = makeWindow(
+            title: "Nuevo snippet",
+            view: QuickAddView(store: store, onDismiss: { [weak self] in
+                self?.quickAddWindow?.close()
+            }),
+            width: 380, height: 240, resizable: false
+        )
+        quickAddWindow = w
+        w.makeKeyAndOrderFront(nil)
+    }
+
+    // Stub completado en tarea 12.
     func showOnboarding() { print("showOnboarding (pendiente)") }
 
     func togglePause() { paused.toggle() }
