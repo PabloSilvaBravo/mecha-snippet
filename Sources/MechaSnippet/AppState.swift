@@ -56,8 +56,19 @@ final class AppState: ObservableObject {
         )
     }
 
-    // Real en tarea 10 (Inserter). Por ahora solo registra.
-    func insert(_ s: Snippet) { print("insertar: \(s.name)") }
+    /// Pega tras un pequeño retardo (para que el foco vuelva a la app anterior) y
+    /// RECIÉN AHÍ reactiva el listener, para que el Cmd+V sintético no reactive la
+    /// detección de '//' ni se coma el próximo disparador.
+    func insert(_ s: Snippet) {
+        let content = s.content
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            Inserter.insert(content)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self?.hotkey.reset()
+                self?.hotkey.suspended = false
+            }
+        }
+    }
 
     private func onPanelClose() {
         hotkey.reset()

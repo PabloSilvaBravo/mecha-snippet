@@ -38,8 +38,10 @@ final class SearchPanel: NSPanel, NSWindowDelegate {
         store.load()
         let model = PanelModel(store: store)
         model.resetForShow()
-        model.onInsert = { [weak self] s in self?.dismiss(); onInsert(s) }
-        model.onClose = { [weak self] in self?.dismiss() }
+        // Al insertar NO rearmamos el hotkey en el cierre: lo hace insert() después
+        // de pegar, para que el Cmd+V sintético no reactive la detección de '//'.
+        model.onInsert = { [weak self] s in self?.dismiss(callClose: false); onInsert(s) }
+        model.onClose = { [weak self] in self?.dismiss(callClose: true) }
         self.model = model
         self.onCloseCallback = onClose
 
@@ -74,7 +76,7 @@ final class SearchPanel: NSPanel, NSWindowDelegate {
         }
     }
 
-    func dismiss() {
+    func dismiss(callClose: Bool = true) {
         if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
         ignoreResign = true
         orderOut(nil)
@@ -82,7 +84,7 @@ final class SearchPanel: NSPanel, NSWindowDelegate {
         model = nil
         let cb = onCloseCallback
         onCloseCallback = nil
-        cb?()
+        if callClose { cb?() }
     }
 
     // Guardar la posición al moverlo.
