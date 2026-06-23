@@ -38,22 +38,58 @@ struct SearchPanelView: View {
     var body: some View {
         let results = model.results
         VStack(spacing: 10) {
-            TextField("Buscar snippet…", text: $model.query)
-                .textFieldStyle(.plain)
-                .font(.system(size: 16))
-                .focused($searchFocused)
-                .onChange(of: model.query) { model.selection = 0 }
-                .onSubmit { model.insertCurrent() }
-
-            HStack(alignment: .top, spacing: 12) {
-                listColumn(results)
-                previewColumn(results)
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Buscar snippet…", text: $model.query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 16))
+                    .focused($searchFocused)
+                    .onChange(of: model.query) { model.selection = 0 }
+                    .onSubmit { model.insertCurrent() }
             }
+
+            if results.isEmpty {
+                emptyState
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    listColumn(results)
+                    previewColumn(results)
+                }
+            }
+
+            shortcutsBar
         }
         .padding(16)
         .frame(width: 600)
         .glassBackground(cornerRadius: 20)
         .onAppear { searchFocused = true }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "tray").font(.largeTitle).foregroundStyle(.tertiary)
+            Text("Sin resultados").foregroundStyle(.secondary)
+        }
+        .frame(width: 552, height: 200)
+    }
+
+    private var shortcutsBar: some View {
+        HStack(spacing: 14) {
+            keyHint("↑↓", "navegar")
+            keyHint("↵", "pegar")
+            keyHint("esc", "cerrar")
+            Spacer()
+        }
+        .font(.caption2)
+        .foregroundStyle(.tertiary)
+    }
+
+    private func keyHint(_ key: String, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(key).padding(.horizontal, 5).padding(.vertical, 1)
+                .background(.secondary.opacity(0.18), in: RoundedRectangle(cornerRadius: 4))
+            Text(label)
+        }
     }
 
     @ViewBuilder
@@ -86,12 +122,22 @@ struct SearchPanelView: View {
 
     @ViewBuilder
     private func previewColumn(_ results: [Snippet]) -> some View {
-        ScrollView {
-            Text(results.indices.contains(model.selection) ? results[model.selection].content : "")
-                .font(.system(size: 13))
-                .lineSpacing(2)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .textSelection(.enabled)
+        let current = results.indices.contains(model.selection) ? results[model.selection] : nil
+        VStack(alignment: .leading, spacing: 6) {
+            if let current {
+                Text(current.name)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Divider()
+            }
+            ScrollView {
+                Text(current?.content ?? "")
+                    .font(.system(size: 13))
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .textSelection(.enabled)
+            }
         }
         .frame(width: 320, height: 280)
         .padding(10)
