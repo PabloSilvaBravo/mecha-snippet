@@ -101,8 +101,21 @@ final class AppState: ObservableObject {
         w.makeKeyAndOrderFront(nil)
     }
 
-    // Stub completado en tarea 12.
-    func showOnboarding() { print("showOnboarding (pendiente)") }
+    func showOnboarding() {
+        NSApp.activate(ignoringOtherApps: true)
+        if onboardingWindow == nil {
+            onboardingWindow = makeWindow(
+                title: "Bienvenido a Mecha Snippet", view: OnboardingView(),
+                width: 480, height: 380, resizable: false
+            )
+        }
+        onboardingWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    /// True si falta algún permiso (para mostrar el onboarding al arrancar).
+    var needsPermissions: Bool {
+        !Permissions.accessibility || !Permissions.inputMonitoring
+    }
 
     func togglePause() {
         paused.toggle()

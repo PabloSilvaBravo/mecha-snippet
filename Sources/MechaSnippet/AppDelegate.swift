@@ -26,5 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             NSLog("[mecha] loginitem diagnose:\n\(result)")
         }
+
+        // Primera corrida: si faltan permisos, guiar al usuario.
+        if env["MECHA_NO_ONBOARDING"] != "1", state.needsPermissions {
+            after(1.0) { state.showOnboarding() }
+        }
     }
 }
