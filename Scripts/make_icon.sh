@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SRC="Sources/MechaSnippet/Resources/icon-source.png"
+SRC="Resources/icon-source.png"
 [ -f "$SRC" ] || { echo "Falta $SRC. Corre: swift Scripts/make_icon_source.swift"; exit 1; }
 
 ICONSET="$(mktemp -d)/AppIcon.iconset"

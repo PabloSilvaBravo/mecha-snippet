@@ -14,11 +14,13 @@ enum Paths {
         appSupportDir.appendingPathComponent("snippets.json")
     }
 
-    /// Copia el ejemplo embebido la primera vez.
+    /// Copia el ejemplo embebido la primera vez. El JSON vive en
+    /// Contents/Resources/ del bundle (lo copia el script de empaquetado),
+    /// así que se lee con Bundle.main, sin resource bundles anidados.
     static func seedIfNeeded() {
         let dest = snippetsURL
         guard !FileManager.default.fileExists(atPath: dest.path) else { return }
-        if let example = Bundle.module.url(forResource: "snippets.example", withExtension: "json") {
+        if let example = Bundle.main.url(forResource: "snippets.example", withExtension: "json") {
             try? FileManager.default.copyItem(at: example, to: dest)
         } else {
             try? Data("[]".utf8).write(to: dest)

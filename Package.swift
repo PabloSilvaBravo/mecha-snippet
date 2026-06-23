@@ -8,8 +8,7 @@ let package = Package(
         .target(name: "MechaSnippetCore"),
         .executableTarget(
             name: "MechaSnippet",
-            dependencies: ["MechaSnippetCore"],
-            resources: [.process("Resources")]
+            dependencies: ["MechaSnippetCore"]
         ),
         .testTarget(
             name: "MechaSnippetCoreTests",

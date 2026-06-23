@@ -21,6 +21,20 @@ final class AppState: ObservableObject {
         store = SnippetStore(fileURL: Paths.snippetsURL)
         hotkey = HotkeyMonitor { [weak self] in self?.onTrigger() }
         hotkey.start()
+        startPermissionWatcher()
+    }
+
+    /// Si el tap no se pudo crear (faltaba el permiso al arrancar), reintenta
+    /// cada 2s en cuanto el usuario concede Monitoreo de entrada, sin tener que
+    /// reiniciar la app.
+    private func startPermissionWatcher() {
+        Task { @MainActor [weak self] in
+            while let self, !self.hotkey.isActive {
+                if Permissions.inputMonitoring { self.hotkey.start() }
+                if self.hotkey.isActive { break }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 
     private func onTrigger() {
@@ -115,6 +129,15 @@ final class AppState: ObservableObject {
     /// True si falta algún permiso (para mostrar el onboarding al arrancar).
     var needsPermissions: Bool {
         !Permissions.accessibility || !Permissions.inputMonitoring
+    }
+
+    var hotkeyActive: Bool { hotkey.isActive }
+
+    /// Dispara los diálogos del sistema para ambos permisos. Hace que la app
+    /// aparezca en las listas de Ajustes para que el usuario solo active el toggle.
+    func requestPermissions() {
+        Permissions.requestInputMonitoring()
+        Permissions.promptAccessibility()
     }
 
     func togglePause() {

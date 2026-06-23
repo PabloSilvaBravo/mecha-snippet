@@ -34,7 +34,7 @@ if let sym = NSImage(systemSymbolName: "scissors", accessibilityDescription: nil
 
 NSGraphicsContext.restoreGraphicsState()
 
-let out = URL(fileURLWithPath: "Sources/MechaSnippet/Resources/icon-source.png")
+let out = URL(fileURLWithPath: "Resources/icon-source.png")
 try? FileManager.default.createDirectory(
     at: out.deletingLastPathComponent(), withIntermediateDirectories: true
 )

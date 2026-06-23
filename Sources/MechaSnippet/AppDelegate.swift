@@ -1,7 +1,6 @@
 import AppKit
 
-/// Permite disparar vistas al arrancar mediante variables de entorno, para poder
-/// capturar la interfaz de forma automatizada en la verificación visual.
+/// Disparadores opcionales por variable de entorno para verificación visual.
 /// Ej: MECHA_DEBUG_PANEL=1 open "Mecha Snippet.app"
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -18,18 +17,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if env["MECHA_DEBUG_PANEL"] == "1" { after(0.8) { state.showPanel() } }
         if env["MECHA_DEBUG_MANAGER"] == "1" { after(0.8) { state.showManager() } }
         if env["MECHA_DEBUG_QUICKADD"] == "1" { after(0.8) { state.showQuickAdd() } }
-        if env["MECHA_DEBUG_ONBOARDING"] == "1" { after(0.8) { state.showOnboarding() } }
-        if env["MECHA_DEBUG_LOGINITEM"] == "1" {
-            let result = LoginItem.diagnose()
-            try? result.write(
-                toFile: "/tmp/mecha_loginitem.log", atomically: true, encoding: .utf8
-            )
-            NSLog("[mecha] loginitem diagnose:\n\(result)")
-        }
 
-        // Primera corrida: si faltan permisos, guiar al usuario.
+        // Primera corrida: si faltan permisos, guiar al usuario y disparar los
+        // diálogos del sistema (la app aparece en Ajustes para activar el toggle).
         if env["MECHA_NO_ONBOARDING"] != "1", state.needsPermissions {
-            after(1.0) { state.showOnboarding() }
+            after(0.6) {
+                state.showOnboarding()
+                state.requestPermissions()
+            }
         }
     }
 }

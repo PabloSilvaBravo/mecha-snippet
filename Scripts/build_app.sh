@@ -10,14 +10,16 @@ echo "==> swift build (release)"
 swift build -c release
 
 BIN=".build/release/MechaSnippet"
-RES_BUNDLE=".build/release/MechaSnippet_MechaSnippet.bundle"
 
 echo "==> armando $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 cp "$BIN" "$APP/Contents/MacOS/MechaSnippet"
-[ -d "$RES_BUNDLE" ] && cp -R "$RES_BUNDLE" "$APP/Contents/Resources/"
+
+# Recursos planos en Contents/Resources/ (sin resource bundles de SwiftPM, que
+# rompen la firma para TCC). Se leen con Bundle.main.
+cp "Resources/snippets.example.json" "$APP/Contents/Resources/snippets.example.json"
 
 sed "s/__VERSION__/$VERSION/g" Scripts/Info.plist.template > "$APP/Contents/Info.plist"
 
@@ -31,6 +33,9 @@ if [ -f "Scripts/LaunchAgent.plist" ]; then
 fi
 
 echo "==> firmando"
-codesign --force --deep --options runtime --sign "$SIGN_ID" "$APP"
-codesign --verify --verbose "$APP"
+# Sin --deep y sin resource bundles anidados: firma simple y consistente, que es
+# lo que TCC exige para Input Monitoring / Accesibilidad.
+codesign --force --options runtime --sign "$SIGN_ID" "$APP"
+echo "==> verificando firma (estricta)"
+codesign --verify --deep --strict --verbose=2 "$APP"
 echo "==> listo: $APP"
