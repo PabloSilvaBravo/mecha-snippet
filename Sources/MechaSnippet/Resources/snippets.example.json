@@ -1,0 +1,6 @@
+[
+  {"name": "saludo", "content": "Hola, gracias por escribir a la tienda. ¿En qué te puedo ayudar?"},
+  {"name": "despedida", "content": "Quedo atento a cualquier consulta. ¡Que tengas un buen día!"},
+  {"name": "correo", "content": "ejemplo@ejemplo.cl"},
+  {"name": "pago", "content": "Los datos de transferencia son:\n\nEMPRESA EJEMPLO SPA\nRUT 00.000.000-0\nCta. Corriente Banco Ejemplo N° 00000000\nejemplo@ejemplo.cl"}
+]

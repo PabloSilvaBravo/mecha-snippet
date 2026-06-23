@@ -30,3 +30,7 @@ Icon?
 .idea/
 .vscode/
 *.swp
+
+# Swift Package Manager
+.build/
+.swiftpm/
