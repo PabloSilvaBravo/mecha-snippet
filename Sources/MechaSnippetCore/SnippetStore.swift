@@ -18,8 +18,26 @@ public final class SnippetStore: ObservableObject {
         // Si no parsea, se conserva lo que haya en memoria.
     }
 
-    /// Parser puro de los tres formatos aceptados. nil si no es JSON válido.
+    /// Parser de los tres formatos aceptados, con reparación de comillas
+    /// tipográficas como respaldo. nil si no es JSON recuperable.
     public static func decode(_ data: Data) -> [Snippet]? {
+        if let items = parse(data) { return items }
+        // Respaldo: muchos JSON se rompen al editarlos en TextEdit, que cambia
+        // las comillas dobles rectas por tipográficas (" "). Las normalizamos
+        // y reintentamos. Solo se activa si el parseo directo ya falló.
+        if let text = String(data: data, encoding: .utf8) {
+            let repaired = text
+                .replacingOccurrences(of: "\u{201C}", with: "\"")
+                .replacingOccurrences(of: "\u{201D}", with: "\"")
+            if repaired != text, let repairedData = repaired.data(using: .utf8) {
+                return parse(repairedData)
+            }
+        }
+        return nil
+    }
+
+    /// Parser puro de los tres formatos aceptados. nil si no es JSON válido.
+    private static func parse(_ data: Data) -> [Snippet]? {
         guard let obj = try? JSONSerialization.jsonObject(with: data) else { return nil }
         if let dict = obj as? [String: Any] {
             // Formato 1.x: {"nombre":"contenido"} — orden no garantizado.

@@ -24,6 +24,16 @@ private func tmpURL() -> URL {
     #expect(SnippetStore.decode(Data("{no es json".utf8)) == nil)
 }
 
+@Test func reparaComillasTipograficas() {
+    // JSON con comillas dobles tipográficas (lo que deja TextEdit con
+    // sustituciones activadas). Debe repararse y parsear igual.
+    let json = "{\u{201C}saludo\u{201D}:\u{201C}Hola\u{201D}}".data(using: .utf8)!
+    let items = SnippetStore.decode(json)!
+    #expect(items.count == 1)
+    #expect(items.first?.name == "saludo")
+    #expect(items.first?.content == "Hola")
+}
+
 @Test func guardadoYReloadRoundTrip() throws {
     let url = tmpURL()
     defer { try? FileManager.default.removeItem(at: url) }
