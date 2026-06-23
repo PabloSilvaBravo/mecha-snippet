@@ -2,7 +2,8 @@ import SwiftUI
 
 @main
 struct MechaSnippetApp: App {
-    @StateObject private var state = AppState()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var state = AppState.shared
 
     var body: some Scene {
         MenuBarExtra("Mecha Snippet", systemImage: "scissors") {
